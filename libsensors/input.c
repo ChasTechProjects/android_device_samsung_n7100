@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2019 Răileanu Cosmin <comico_work@outlook.com>
+ * Copyright (C) 2013 Paul Kocialkowski <contact@paulk.fr>
+ * Copyright (C) 2016 Jonathan Jason Dennis [Meticulus]
+ *									theonejohnnyd@gmail.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,10 +28,10 @@
 #include <linux/input.h>
 #include <linux/uinput.h>
 
-#define LOG_TAG "NoteII_Input"
+#define LOG_TAG "smdk4x12_sensors"
 #include <utils/Log.h>
 
-#include "noteII_sensors.h"
+#include "smdk4x12_sensors.h"
 
 void input_event_set(struct input_event *event, int type, int code, int value)
 {
@@ -43,13 +45,6 @@ void input_event_set(struct input_event *event, int type, int code, int value)
 	event->value = value;
 
 	gettimeofday(&event->time, NULL);
-}
-
-int64_t getTimestamp() {
-    struct timespec t;
-    t.tv_sec = t.tv_nsec = 0;
-    clock_gettime(CLOCK_BOOTTIME, &t);
-    return (int64_t)(t.tv_sec)*1000000000LL + t.tv_nsec;
 }
 
 int64_t timestamp(struct timeval *time)
@@ -79,7 +74,7 @@ int uinput_rel_create(const char *name)
 
 	uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
 	if (uinput_fd < 0) {
-		//ALOGD("%s: Unable to open uinput device", __func__);
+		ALOGE("%s: Unable to open uinput device", __func__);
 		goto error;
 	}
 
@@ -100,19 +95,19 @@ int uinput_rel_create(const char *name)
 	rc |= ioctl(uinput_fd, UI_SET_EVBIT, EV_SYN);
 
 	if (rc < 0) {
-		//ALOGD("%s: Unable to set uinput bits", __func__);
+		ALOGE("%s: Unable to set uinput bits", __func__);
 		goto error;
 	}
 
 	rc = write(uinput_fd, &uinput_dev, sizeof(uinput_dev));
 	if (rc < 0) {
-		//ALOGD("%s: Unable to write uinput device", __func__);
+		ALOGE("%s: Unable to write uinput device", __func__);
 		goto error;
 	}
 
 	rc = ioctl(uinput_fd, UI_DEV_CREATE);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to create uinput device", __func__);
+		ALOGE("%s: Unable to create uinput device", __func__);
 		goto error;
 	}
 
@@ -347,3 +342,30 @@ complete:
 
 	return rc;
 }
+
+int write_cmd(char const *path, char *cmd, int size)
+{
+	int fd, ret;
+	char * mesg;
+
+	ALOGE("%s: init", __func__);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		mesg= strerror(errno);
+		ALOGE("%s: Cannot open %s, fd = %d, msg = %s\n", __func__, path, fd, mesg);
+		return -ENODEV;
+	}
+
+	ret = write(fd, cmd, size);
+	if (ret != size) {
+		mesg= strerror(errno);
+		ALOGE("%s: path = %s", __func__, path);
+		ALOGE("%s: Error. Wrote: %d, should have written: %d, msg = %s\n", __func__, ret, size, mesg);
+	}
+	ALOGE("%s: path = %s, ret = %d", __func__, path, ret);
+
+	close(fd);
+	return ret;
+}
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Răileanu Cosmin <comico_work@outlook.com>
+ * Copyright (C) 2014 Paul Kocialkowski <contact@paulk.fr>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,10 +21,10 @@
 #include <hardware/sensors.h>
 #include <hardware/hardware.h>
 
-#define LOG_TAG "NoteII_ssp"
+#define LOG_TAG "smdk4x12_sensors"
 #include <utils/Log.h>
 
-#include "noteII_sensors.h"
+#include "smdk4x12_sensors.h"
 #include "ssp.h"
 
 int ssp_sensor_enable(int sensor_type)
@@ -33,7 +33,7 @@ int ssp_sensor_enable(int sensor_type)
 	int value;
 	int rc;
 
-	//ALOGD("%s(%d)", __func__, sensor_type);
+	ALOGD("%s(%d)", __func__, sensor_type);
 
 	if (sensor_type < 0 || sensor_type >= SENSOR_FACTORY_MAX)
 		return -EINVAL;
@@ -46,10 +46,7 @@ int ssp_sensor_enable(int sensor_type)
 
 	rc = sysfs_value_write(path_enable, value);
 	if (rc < 0)
-	{
-		//ALOGD("Check path_enable! ERROR! SENSOR: ", sensor_type);
 		return -1;
-	}
 
 	return 0;
 }
@@ -60,7 +57,7 @@ int ssp_sensor_disable(int sensor_type)
 	int value;
 	int rc;
 
-	//ALOGD("%s(%d)", __func__, sensor_type);
+	ALOGD("%s(%d)", __func__, sensor_type);
 
 	if (sensor_type < 0 || sensor_type >= SENSOR_FACTORY_MAX)
 		return -EINVAL;
@@ -75,6 +72,5 @@ int ssp_sensor_disable(int sensor_type)
 	if (rc < 0)
 		return -1;
 
-	//ALOGD("DISABLED: ", sensor_type);
 	return 0;
 }

@@ -1,5 +1,4 @@
-#
-# Copyright (C) 2019 Răileanu Cosmin <comico_work@outlook.com>
+# Copyright (C) 2013-2014 Paul Kocialkowski <contact@paulk.fr>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,14 +12,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
 
 LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-	noteII_sensors.c \
+	smdk4x12_sensors.c \
 	input.c \
 	ssp.c \
 	akm8963.c \
@@ -33,7 +31,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)
 
-LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libhardware libc
+LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libhardware
 LOCAL_PRELINK_MODULE := false
 
 LOCAL_MODULE := sensors.$(TARGET_BOOTLOADER_BOARD_NAME)

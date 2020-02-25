@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Răileanu Cosmin <comico_work@outlook.com>
+ * Copyright (C) 2014 Paul Kocialkowski <contact@paulk.fr>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,23 +19,23 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <errno.h>
 #include <string.h>
 
 #include <hardware/sensors.h>
 #include <hardware/hardware.h>
 
-#define LOG_TAG "Akm_NoteII"
+#define LOG_TAG "smdk4x12_sensors"
 #include <utils/Log.h>
 
-#include "noteII_sensors.h"
+#include "smdk4x12_sensors.h"
 #include "ssp.h"
 
 #define AKM8963_CONFIG_PATH			"/data/misc/akmd_set.txt"
 
-extern int mFlushed;
-
 struct akm8963_data {
+
 	sensors_vec_t magnetic;
 	short magnetic_data[4][3];
 	int magnetic_data_count;
@@ -54,8 +54,20 @@ struct akm8963_data {
 	int thread_continue;
 };
 
-// This AKM8963 implementation is based on 
-// REPLICANT sensor code for N7100 and AKM8963 documentation
+// This AKM8963 implementation is based on intuitive understanding of how the
+// AKM8963 data is translated to SI units.
+//
+// The raw data is a two-byte short value that is the 16 bit ADC read value.
+// This value has to be corrected using the ASA Sensivity Adujstment value
+// as such: v_adj = v * (((ASA - 128) * 0.5) / 128 + 1)
+// LSB values can then be converted to uT units, with 0.15uT/LSB:
+// m = 0.15 * v * (((ASA - 128) * 0.5) / 128 + 1)
+//
+// Moreover, we calculate and apply a software offset (HO) in order to have the
+// maximum final values for each axis at ~45uT and minimum at ~-45uT.
+// In order to store HO as an integer, the applied offset is 0.06 * HO:
+// m = 0.15 * v * (((ASA - 128) * 0.5) / 128 + 1) - 0.06 * HO
+
 
 int akm8963_magnetic_extrema(struct akm8963_data *data, int index)
 {
@@ -85,7 +97,7 @@ int akm8963_config_read(struct akm8963_data *data)
 
 	config_fd = open(AKM8963_CONFIG_PATH, O_RDONLY);
 	if (config_fd < 0) {
-		//ALOGD("%s: Unable to open akm8963 config %d %s", __func__, errno, strerror(errno));
+		ALOGE("%s: Unable to open akm8963 config %d %s", __func__, errno, strerror(errno));
 		goto error;
 	}
 
@@ -150,7 +162,7 @@ int akm8963_config_write(struct akm8963_data *data)
 
 	config_fd = open(AKM8963_CONFIG_PATH, O_WRONLY | O_TRUNC | O_CREAT, 0664);
 	if (config_fd < 0) {
-		//ALOGD("%s: Unable to open akm8963 config", __func__);
+		ALOGE("%s: Unable to open akm8963 config", __func__);
 		goto error;
 	}
 
@@ -159,7 +171,7 @@ int akm8963_config_write(struct akm8963_data *data)
 
 	rc = write(config_fd, buffer, length);
 	if (rc < length) {
-		//ALOGD("%s: Unable to write akm8963 config", __func__);
+		ALOGE("%s: Unable to write akm8963 config", __func__);
 		goto error;
 	}
 
@@ -168,7 +180,7 @@ int akm8963_config_write(struct akm8963_data *data)
 
 	rc = write(config_fd, buffer, length);
 	if (rc < length) {
-		//ALOGD("%s: Unable to write akm8963 config", __func__);
+		ALOGE("%s: Unable to write akm8963 config", __func__);
 		goto error;
 	}
 
@@ -177,7 +189,7 @@ int akm8963_config_write(struct akm8963_data *data)
 
 	rc = write(config_fd, buffer, length);
 	if (rc < length) {
-		//ALOGD("%s: Unable to write akm8963 config", __func__);
+		ALOGE("%s: Unable to write akm8963 config", __func__);
 		goto error;
 	}
 
@@ -270,7 +282,7 @@ int akm8963_magnetic(struct akm8963_data *data)
 
 void *akm8963_thread(void *thread_data)
 {
-	struct noteII_sensors_handlers *handlers = NULL;
+	struct smdk4x12_sensors_handlers *handlers = NULL;
 	struct akm8963_data *data = NULL;
 	struct input_event event;
 	struct timeval time;
@@ -286,7 +298,7 @@ void *akm8963_thread(void *thread_data)
 	if (thread_data == NULL)
 		return NULL;
 
-	handlers = (struct noteII_sensors_handlers *) thread_data;
+	handlers = (struct smdk4x12_sensors_handlers *) thread_data;
 	if (handlers->data == NULL)
 		return NULL;
 
@@ -312,12 +324,12 @@ void *akm8963_thread(void *thread_data)
 			memset(&i2c_data, 0, sizeof(i2c_data));
 			rc = ioctl(device_fd, ECS_IOCTL_GET_MAGDATA, &i2c_data);
 			if (rc < 0) {
-				//ALOGD("%s: Unable to get akm8963 data", __func__);
+				ALOGE("%s: Unable to get akm8963 data", __func__);
 				goto next;
 			}
 
 			if (!(i2c_data[0] & 0x01)) {
-				//ALOGD("%s: akm8963 data is not ready", __func__);
+				ALOGE("%s: akm8963 data is not ready", __func__);
 				goto next;
 			}
 
@@ -336,13 +348,13 @@ void *akm8963_thread(void *thread_data)
 
 			rc = akm8963_ho_calibration(data, (short *) &magnetic_data, sizeof(magnetic_data));
 			if (rc < 0) {
-				//ALOGD("%s: Unable to calibrate akm8963 HO", __func__);
+				ALOGE("%s: Unable to calibrate akm8963 HO", __func__);
 				goto next;
 			}
 
 			rc = akm8963_magnetic(data);
 			if (rc < 0) {
-				//ALOGD("%s: Unable to get akm8963 magnetic", __func__);
+				ALOGE("%s: Unable to get akm8963 magnetic", __func__);
 				goto next;
 			}
 
@@ -371,7 +383,7 @@ next:
 	return NULL;
 }
 
-int akm8963_init(struct noteII_sensors_handlers *handlers,
+int akm8963_init(struct smdk4x12_sensors_handlers *handlers,
 	struct smdk4x12_sensors_device *device)
 {
 	struct akm8963_data *data = NULL;
@@ -382,7 +394,7 @@ int akm8963_init(struct noteII_sensors_handlers *handlers,
 	int rc;
 	int i;
 
-	//ALOGD("%s(%p, %p)", __func__, handlers, device);
+	ALOGD("%s(%p, %p)", __func__, handlers, device);
 
 	if (handlers == NULL || device == NULL)
 		return -EINVAL;
@@ -391,28 +403,28 @@ int akm8963_init(struct noteII_sensors_handlers *handlers,
 
 	device_fd = open("/dev/akm8963", O_RDONLY);
 	if (device_fd < 0) {
-		//ALOGD("%s: Unable to open device", __func__);
+		ALOGE("%s: Unable to open device", __func__);
 		goto error;
 	}
 
 	rc = ioctl(device_fd, ECS_IOCTL_GET_FUSEROMDATA, &data->asa);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to get akm8963 FUSE ROM data", __func__);
+		ALOGE("%s: Unable to get akm8963 FUSE ROM data", __func__);
 		goto error;
 	}
 
-	//ALOGD("AKM8963 ASA (Sensitivity Adjustment) values are: (%d, %d, %d)",
-		//data->asa[0], data->asa[1], data->asa[2]);
+	ALOGD("AKM8963 ASA (Sensitivity Adjustment) values are: (%d, %d, %d)",
+		data->asa[0], data->asa[1], data->asa[2]);
 
 	uinput_fd = uinput_rel_create("magnetic_sensor");
 	if (uinput_fd < 0) {
-		//ALOGD("%s: Unable to create uinput", __func__);
+		ALOGD("%s: Unable to create uinput", __func__);
 		goto error;
 	}
 
 	input_fd = input_open("magnetic_sensor");
 	if (input_fd < 0) {
-		//ALOGD("%s: Unable to open magnetic input", __func__);
+		ALOGE("%s: Unable to open magnetic input", __func__);
 		goto error;
 	}
 
@@ -426,7 +438,7 @@ int akm8963_init(struct noteII_sensors_handlers *handlers,
 
 	rc = pthread_create(&data->thread, &thread_attr, akm8963_thread, (void *) handlers);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to create akm8963 thread", __func__);
+		ALOGE("%s: Unable to create akm8963 thread", __func__);
 		pthread_mutex_destroy(&data->mutex);
 		goto error;
 	}
@@ -457,12 +469,12 @@ error:
 	return -1;
 }
 
-int akm8963_deinit(struct noteII_sensors_handlers *handlers)
+int akm8963_deinit(struct smdk4x12_sensors_handlers *handlers)
 {
 	struct akm8963_data *data = NULL;
 	int rc;
 
-	//ALOGD("%s(%p)", __func__, handlers);
+	ALOGD("%s(%p)", __func__, handlers);
 
 	if (handlers == NULL || handlers->data == NULL)
 		return -EINVAL;
@@ -495,12 +507,39 @@ int akm8963_deinit(struct noteII_sensors_handlers *handlers)
 	return 0;
 }
 
-int akm8963_activate(struct noteII_sensors_handlers *handlers)
+int akm8963_set_delay(struct smdk4x12_sensors_handlers *handlers, int64_t delay);
+
+static void* set_initial_state_fn(void *data) {
+	struct smdk4x12_sensors_handlers *handlers = (struct smdk4x12_sensors_handlers*)data;
+
+	ALOGE("%s: start", __func__);
+	usleep(100000); // 100ms
+	if (handlers == NULL || handlers->data == NULL)
+		return NULL;
+
+	akm8963_set_delay(handlers, 100000);
+	ALOGE("%s: end", __func__);
+
+	return NULL;
+}
+
+static void set_initial_state_thread(struct smdk4x12_sensors_handlers *handlers) {
+	pthread_attr_t thread_attr;
+	pthread_t setdelay_thread;
+
+	pthread_attr_init(&thread_attr);
+	pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
+	int rc = pthread_create(&setdelay_thread, &thread_attr, set_initial_state_fn, (void*)handlers);
+	if (rc < 0)
+		ALOGE("%s: Unable to create thread", __func__);
+}
+
+int akm8963_activate(struct smdk4x12_sensors_handlers *handlers)
 {
 	struct akm8963_data *data;
 	int rc;
 
-	//ALOGD("%s(%p)", __func__, handlers);
+	ALOGD("%s(%p)", __func__, handlers);
 
 	if (handlers == NULL || handlers->data == NULL)
 		return -EINVAL;
@@ -509,29 +548,30 @@ int akm8963_activate(struct noteII_sensors_handlers *handlers)
 
 	rc = akm8963_config_read(data);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to read akm8963 config", __func__);
+		ALOGE("%s: Unable to read akm8963 config", __func__);
 	}
 
 	rc = ssp_sensor_enable(GEOMAGNETIC_SENSOR);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to enable ssp sensor", __func__);
+		ALOGE("%s: Unable to enable ssp sensor", __func__);
 		return -1;
 	}
 
 	handlers->activated = 1;
+	set_initial_state_thread(handlers);
 	pthread_mutex_unlock(&data->mutex);
 
 	return 0;
 }
 
-int akm8963_deactivate(struct noteII_sensors_handlers *handlers)
+int akm8963_deactivate(struct smdk4x12_sensors_handlers *handlers)
 {
 	struct akm8963_data *data;
 	int empty;
 	int rc;
 	int i;
 
-	//ALOGD("%s(%p)", __func__, handlers);
+	ALOGD("%s(%p)", __func__, handlers);
 
 	if (handlers == NULL || handlers->data == NULL)
 		return -EINVAL;
@@ -549,13 +589,13 @@ int akm8963_deactivate(struct noteII_sensors_handlers *handlers)
 
 	if (!empty) {
 		rc = akm8963_config_write(data);
-	//	if (rc < 0)
-			//ALOGD("%s: Unable to write akm8963 config", __func__);
+		if (rc < 0)
+			ALOGE("%s: Unable to write akm8963 config", __func__);
 	}
 
 	rc = ssp_sensor_disable(GEOMAGNETIC_SENSOR);
 	if (rc < 0) {
-		//ALOGD("%s: Unable to disable ssp sensor", __func__);
+		ALOGE("%s: Unable to disable ssp sensor", __func__);
 		return -1;
 	}
 
@@ -564,7 +604,7 @@ int akm8963_deactivate(struct noteII_sensors_handlers *handlers)
 	return 0;
 }
 
-int akm8963_set_delay(struct noteII_sensors_handlers *handlers, int64_t delay)
+int akm8963_set_delay(struct smdk4x12_sensors_handlers *handlers, int64_t delay)
 {
 	struct akm8963_data *data;
 	char mag_path_delay[PATH_MAX] = "/sys/class/sensors/ssp_sensor/mag_poll_delay";
@@ -572,17 +612,17 @@ int akm8963_set_delay(struct noteII_sensors_handlers *handlers, int64_t delay)
 	int rc;
 	int orirc;
 
-	//ALOGD("%s(%p, %" PRId64 ")", __func__, handlers, delay);
+	ALOGD("%s(%p, %" PRId64 ")", __func__, handlers, delay);
 
 	if (handlers == NULL || handlers->data == NULL)
 		return -EINVAL;
 
 	data = (struct akm8963_data *) handlers->data;
 
-	rc = sysfs_value_write(mag_path_delay, (int) delay);
-	orirc = sysfs_value_write(ori_path_delay, (int) delay);
-	if (rc < 0 || orirc < 0) {
-		//ALOGD("%s: Unable to write sysfs value", __func__);
+	rc = write_cmd(mag_path_delay, "66667000", 9);
+	orirc = write_cmd(ori_path_delay, "66667000", 9);
+	if (rc < 0) {
+		ALOGE("%s: Unable to write sysfs value", __func__);
 		return -1;
 	}
 
@@ -596,7 +636,9 @@ float akm8963_convert(int value)
 	return (float) value / 1000.0f;
 }
 
-int akm8963_get_data(struct noteII_sensors_handlers *handlers,
+extern int mFlushed;
+
+int akm8963_get_data(struct smdk4x12_sensors_handlers *handlers,
 	struct sensors_event_t *event)
 {
 	struct akm8963_data *data;
@@ -606,9 +648,11 @@ int akm8963_get_data(struct noteII_sensors_handlers *handlers,
 
 	int sensorId = SENSOR_TYPE_MAGNETIC_FIELD;
 
+//	ALOGD("%s(%p, %p)", __func__, handlers, event);
+
 	if (handlers == NULL || handlers->data == NULL || event == NULL)
 		return -EINVAL;
-	
+
 	if (mFlushed & (1 << sensorId)) { /* Send flush META_DATA_FLUSH_COMPLETE immediately */
 		sensors_event_t sensor_event;
 		memset(&sensor_event, 0, sizeof(sensor_event));
@@ -618,7 +662,7 @@ int akm8963_get_data(struct noteII_sensors_handlers *handlers,
 		sensor_event.meta_data.what = 0;
 		*event++ = sensor_event;
 		mFlushed &= ~(0x01 << sensorId);
-		//ALOGD("AkmSensor: %s Flushed sensorId: %d", __func__, sensorId);
+		ALOGD("AkmSensor: %s Flushed sensorId: %d", __func__, sensorId);
 	}
 
 	data = (struct akm8963_data *) handlers->data;
@@ -656,14 +700,14 @@ int akm8963_get_data(struct noteII_sensors_handlers *handlers,
 			}
 		} else if (input_event.type == EV_SYN) {
 			if (input_event.code == SYN_REPORT)
-				event->timestamp = getTimestamp();
+				event->timestamp = input_timestamp(&input_event);
 		}
 	} while (input_event.type != EV_SYN);
 
 	return 0;
 }
 
-struct noteII_sensors_handlers akm8963 = {
+struct smdk4x12_sensors_handlers akm8963 = {
 	.name = "AKM8963",
 	.handle = SENSOR_TYPE_MAGNETIC_FIELD,
 	.init = akm8963_init,
