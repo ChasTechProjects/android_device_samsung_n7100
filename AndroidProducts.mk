@@ -15,4 +15,8 @@
 #
 
 PRODUCT_MAKEFILES := \
-    $(LOCAL_DIR)/havoc_n7100.mk
+    $(LOCAL_DIR)/lineage_n7100.mk
+
+COMMON_LUNCH_CHOICES := \
+    lineage_n7100-userdebug \
+    lineage_n7100-eng

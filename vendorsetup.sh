@@ -1,2 +1,0 @@
-add_lunch_combo havoc_n7100-userdebug
-add_lunch_combo havoc_n7100-eng
