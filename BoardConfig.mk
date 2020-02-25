@@ -36,13 +36,13 @@ BOARD_RIL_CLASS := ../../../device/samsung/n7100/ril
 TARGET_SPECIFIC_HEADER_PATH += device/samsung/n7100/include
 
 # GPS TESTING
-TARGET_PROCESS_SDK_VERSION_OVERRIDE += \
-    /system/bin/gpsd=19
+#TARGET_PROCESS_SDK_VERSION_OVERRIDE += \
+#    /system/bin/gpsd=19
 
 # SHIM SAME
-TARGET_LD_SHIM_LIBS += \
-	/system/lib/libsec-ril.so|libsamsung_symbols.so \
-	/system/bin/gpsd|libdmitry.so \
+#TARGET_LD_SHIM_LIBS += \
+#	/system/lib/libsec-ril.so|libsamsung_symbols.so \
+#	/system/bin/gpsd|libdmitry.so \
 	/system/lib/libgui.so|libshim_gpsd.so
 
 # Graphics
