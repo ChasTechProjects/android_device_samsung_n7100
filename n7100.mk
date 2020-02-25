@@ -45,8 +45,9 @@ PRODUCT_PACKAGES += \
     mkfs.f2fs
 
 # Gps
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/configs/gps.xml:system/etc/gps.xml
+#PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/configs/gps.xml:system/vendor/etc/gps.xml \
+    $(LOCAL_PATH)/gps_daemon.sh:system/vendor/bin/gps_daemon.sh
 	
 # idc 
 PRODUCT_COPY_FILES += \
@@ -66,27 +67,10 @@ PRODUCT_PACKAGES += \
 
 # RIL
 PRODUCT_PACKAGES += \
-	libsecril-shim \
-    libsamsung_symbols
+    libsecril-shim
 
-PRODUCT_PACKAGES += \
-    libxml2
-
-# GPS fix
-PRODUCT_PACKAGES += \
-    libdmitry \
-    libshim_gpsd
-
-# Telephony
-PRODUCT_PACKAGES += \
-    telephony-ext
-
-PRODUCT_BOOT_JARS += \
-    telephony-ext
-
-# Sensors
-PRODUCT_PACKAGES += \
-    sensors.smdk4x12
+# Proprietary blobs dependency on libstlport
+PRODUCT_PACKAGES +=  libstlport
 
 # NFC
 PRODUCT_PACKAGES += \
