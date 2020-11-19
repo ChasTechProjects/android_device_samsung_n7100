@@ -17,7 +17,7 @@ $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
 
 # Device identifier. This must come after all inclusions
 PRODUCT_DEVICE := n7100
-PRODUCT_NAME := lineage_n7100
+PRODUCT_NAME := aosp_n7100
 PRODUCT_BRAND := samsung
 PRODUCT_MODEL := GT-N7100
 PRODUCT_MANUFACTURER := samsung
